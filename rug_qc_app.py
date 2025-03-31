@@ -3,14 +3,13 @@ import streamlit as st
 import pandas as pd
 import string
 from io import BytesIO
-from PIL import Image
 
 # Translations
 translations = {
     "en": {
         "title": "🧵 Rug QC Sheet Generator",
-        "width": "Enter rug width (in cm):",
-        "length": "Enter rug length (in cm):",
+        "width": "Enter rug width (in cm or ft):",
+        "length": "Enter rug length (in cm or ft):",
         "interval": "Grid interval (in cm):",
         "button": "Generate QC Excel Sheet",
         "download": "📥 Download Excel QC Sheet",
@@ -19,12 +18,14 @@ translations = {
         "description": "Description of the Issue",
         "type": "Type of Defect",
         "upload": "Upload Photo (Optional)",
-        "log_title": "📝 Add a Defect Entry"
+        "video_upload": "Upload Video (Optional)",
+        "log_title": "📝 Add a Defect Entry",
+        "unit": "Select unit of measurement"
     },
     "es": {
         "title": "🧵 Generador de Hoja de Control de Calidad de Alfombras",
-        "width": "Ingrese el ancho de la alfombra (en cm):",
-        "length": "Ingrese el largo de la alfombra (en cm):",
+        "width": "Ingrese el ancho de la alfombra (en cm o pies):",
+        "length": "Ingrese el largo de la alfombra (en cm o pies):",
         "interval": "Intervalo de cuadrícula (en cm):",
         "button": "Generar Hoja de Excel de CC",
         "download": "📥 Descargar Hoja de Excel de CC",
@@ -33,7 +34,9 @@ translations = {
         "description": "Descripción del Problema",
         "type": "Tipo de Defecto",
         "upload": "Subir Foto (Opcional)",
-        "log_title": "📝 Añadir una Entrada de Defecto"
+        "video_upload": "Subir Video (Opcional)",
+        "log_title": "📝 Añadir una Entrada de Defecto",
+        "unit": "Seleccione unidad de medida"
     }
 }
 
@@ -59,23 +62,31 @@ def create_rug_qc_excel(rug_width_cm, rug_length_cm, interval_cm=5, defects=[]):
     output.seek(0)
     return output
 
-# UI: Language
+# Language selector
 lang = st.selectbox("Language / Idioma", ["en", "es"])
 t = translations[lang]
 
-# UI: Title and Inputs
+# Unit selector
+unit = st.selectbox(t["unit"], ["cm", "ft"])
+conversion_factor = 30.48 if unit == "ft" else 1
+
+# UI
 st.title(t["title"])
-width = st.number_input(t["width"], min_value=50, value=213)
-length = st.number_input(t["length"], min_value=50, value=305)
+
+width_input = st.number_input(t["width"], min_value=1.0, value=7.0 if unit == "ft" else 213.0)
+length_input = st.number_input(t["length"], min_value=1.0, value=10.0 if unit == "ft" else 305.0)
 interval = st.number_input(t["interval"], min_value=1, value=5)
 
-# UI: Defect log
+width = width_input * conversion_factor
+length = length_input * conversion_factor
+
 st.subheader(t["log_title"])
 location = st.text_input(t["location"])
 description = st.text_area(t["description"])
 defect_type = st.text_input(t["type"])
 severity = st.slider(t["severity"], 1, 5, 3)
 photo = st.file_uploader(t["upload"], type=["png", "jpg", "jpeg"])
+video = st.file_uploader(t["video_upload"], type=["mp4", "mov", "avi"])
 
 if "defect_log" not in st.session_state:
     st.session_state.defect_log = []
@@ -86,12 +97,12 @@ if st.button("➕ Add Defect"):
         "Description of Issue": description,
         "Type of Defect": defect_type,
         "Severity (1–5)": severity,
-        "Photo Filename": photo.name if photo else ""
+        "Photo Filename": photo.name if photo else "",
+        "Video Filename": video.name if video else ""
     }
     st.session_state.defect_log.append(entry)
     st.success("Defect added!")
 
-# Display table with color-coded severity
 if st.session_state.defect_log:
     df = pd.DataFrame(st.session_state.defect_log)
     def color_severity(val):
@@ -105,7 +116,6 @@ if st.session_state.defect_log:
 
     st.dataframe(df.style.applymap(color_severity, subset=["Severity (1–5)"]))
 
-# Download button
 if st.button(t["button"]):
     excel_file = create_rug_qc_excel(width, length, interval, st.session_state.defect_log)
     st.download_button(
