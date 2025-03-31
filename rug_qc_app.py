@@ -143,8 +143,8 @@ if st.button("➕ Add Defect"):
         "Description of Issue": description,
         "Type of Defect": defect_type,
         "Severity (1–5)": severity,
-        "Photo Filename": photo.name if photo else "",
-        "Video Filename": video.name if video else ""
+        "Photo Filename": photo.name if photo else "", "Photo Data": photo.read() if photo else None,
+        "Video Filename": video.name if video else "", "Video Data": video.read() if video else None
     }
     st.session_state.defect_log.append(entry)
     st.success("Defect added!")
@@ -170,9 +170,20 @@ if st.button("🖨️ Generate PDF Summary"):
         pdf.set_font("Arial", size=12)
         pdf.cell(200, 10, txt=t["title"], ln=True, align="C")
         pdf.ln(10)
+
+        from base64 import b64encode
         for i, defect in enumerate(st.session_state.defect_log, 1):
+            photo_link = ""
+            video_link = ""
+            if defect.get("Photo Data"):
+                encoded = b64encode(defect["Photo Data"]).decode()
+                photo_link = f"[View Image](data:image/jpeg;base64,{encoded})"
+            if defect.get("Video Data"):
+                encoded = b64encode(defect["Video Data"]).decode()
+                video_link = f"[View Video](data:video/mp4;base64,{encoded})"
+
             pdf.set_font("Arial", size=10)
-            pdf.multi_cell(0, 8, txt=f"Issue #{i}\nLocation: {defect['Grid Location']}\nSeverity: {defect['Severity (1–5)']}\nType: {defect['Type of Defect']}\nDescription: {defect['Description of Issue']}\nPhoto: {defect['Photo Filename']}\nVideo: {defect['Video Filename']}\n", border=1)
+            pdf.multi_cell(0, 8, txt=f"Issue #{i}\nLocation: {defect['Grid Location']}\nSeverity: {defect['Severity (1–5)']}\nType: {defect['Type of Defect']}\nDescription: {defect['Description of Issue']}\nPhoto: {photo_link}\nVideo: {video_link}\n", border=1)
             pdf.ln(2)
         pdf_output = BytesIO()
         pdf.output(pdf_output)
