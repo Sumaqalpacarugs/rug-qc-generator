@@ -8,21 +8,22 @@ def create_rug_qc_excel(rug_width_cm, rug_length_cm, interval_cm=5):
     num_columns = int(rug_width_cm / interval_cm)
     num_rows = int(rug_length_cm / interval_cm)
 
-    column_labels = list(string.ascii_uppercase)
-    if num_columns > 26:
-        column_labels += [a + b for a in string.ascii_uppercase for b in string.ascii_uppercase]
-    column_labels = column_labels[:num_columns]
+    # Create labels in cm
+    column_labels_cm = [f"{i * interval_cm} cm" for i in range(num_columns)]
+    row_labels_cm = [f"{i * interval_cm} cm" for i in range(num_rows)]
 
-    grid = pd.DataFrame('', index=range(1, num_rows + 1), columns=column_labels)
+    # Create grid with cm-based labels
+    grid = pd.DataFrame('', index=row_labels_cm, columns=column_labels_cm)
 
+    # Create defect log
     defect_log = pd.DataFrame(columns=[
-        "Issue #", "Grid Location (e.g., C12)", "Description of Issue",
+        "Issue #", "Grid Location (e.g., 10 cm x 60 cm)", "Description of Issue",
         "Type of Defect", "Severity (1–5)", "Action Taken"
     ])
 
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        grid.to_excel(writer, sheet_name='Grid', index_label='Row')
+        grid.to_excel(writer, sheet_name='Grid', index_label='Distance from Top (cm)')
         defect_log.to_excel(writer, sheet_name='Defect Log', index=False)
 
     output.seek(0)
