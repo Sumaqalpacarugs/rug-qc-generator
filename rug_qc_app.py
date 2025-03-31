@@ -43,7 +43,53 @@ translations = {
 # Defect log entries
 defect_entries = []
 
+
 def create_rug_qc_excel(rug_width_cm, rug_length_cm, interval_cm=5, defects=[]):
+    from xlsxwriter.utility import xl_rowcol_to_cell
+
+    num_columns = int(rug_width_cm / interval_cm)
+    num_rows = int(rug_length_cm / interval_cm)
+
+    column_labels_cm = [f"{i * interval_cm} cm" for i in range(num_columns)]
+    row_labels_cm = [f"{i * interval_cm} cm" for i in range(num_rows)]
+
+    grid = pd.DataFrame('', index=row_labels_cm, columns=column_labels_cm)
+    defect_log = pd.DataFrame(defects)
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        grid.to_excel(writer, sheet_name='Grid', index_label='Distance from Top (cm)')
+        defect_log.to_excel(writer, sheet_name='Defect Log', index=False)
+
+        workbook = writer.book
+        worksheet = writer.sheets['Grid']
+
+        # Define formats for each severity level
+        severity_formats = {
+            1: workbook.add_format({'bg_color': '#90EE90', 'align': 'center'}),
+            2: workbook.add_format({'bg_color': '#9ACD32', 'align': 'center'}),
+            3: workbook.add_format({'bg_color': '#FFD700', 'align': 'center'}),
+            4: workbook.add_format({'bg_color': '#FFA500', 'align': 'center'}),
+            5: workbook.add_format({'bg_color': '#FF6347', 'align': 'center'}),
+        }
+
+        for defect in defects:
+            location = defect.get("Grid Location", "")
+            severity = defect.get("Severity (1–5)", "")
+            if "cm x" in location and severity in severity_formats:
+                try:
+                    col_cm, row_cm = map(lambda x: int(x.strip().replace("cm", "")), location.split("cm x"))
+                    col_idx = int(col_cm / interval_cm)
+                    row_idx = int(row_cm / interval_cm)
+                    excel_row = row_idx + 1  # account for header
+                    excel_col = col_idx + 1  # account for index label
+                    worksheet.write(excel_row, excel_col, severity, severity_formats[severity])
+                except:
+                    continue
+
+    output.seek(0)
+    return output
+
     num_columns = int(rug_width_cm / interval_cm)
     num_rows = int(rug_length_cm / interval_cm)
 
@@ -116,7 +162,28 @@ if st.session_state.defect_log:
 
     st.dataframe(df.style.applymap(color_severity, subset=["Severity (1–5)"]))
 
-if st.button(t["button"]):
+
+if st.button("🖨️ Generate PDF Summary"):
+    if st.session_state.defect_log:
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 10, txt=t["title"], ln=True, align="C")
+        pdf.ln(10)
+        for i, defect in enumerate(st.session_state.defect_log, 1):
+            pdf.set_font("Arial", size=10)
+            pdf.multi_cell(0, 8, txt=f"Issue #{i}\nLocation: {defect['Grid Location']}\nSeverity: {defect['Severity (1–5)']}\nType: {defect['Type of Defect']}\nDescription: {defect['Description of Issue']}\nPhoto: {defect['Photo Filename']}\nVideo: {defect['Video Filename']}\n", border=1)
+            pdf.ln(2)
+        pdf_output = BytesIO()
+        pdf.output(pdf_output)
+        pdf_output.seek(0)
+        st.download_button(
+            label="📄 Download PDF Summary",
+            data=pdf_output,
+            file_name="Rug_QC_Report.pdf",
+            mime="application/pdf"
+        )
+
     excel_file = create_rug_qc_excel(width, length, interval, st.session_state.defect_log)
     st.download_button(
         label=t["download"],
