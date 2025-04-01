@@ -59,6 +59,35 @@ def create_rug_qc_excel(rug_width_cm, rug_length_cm, interval_cm=5, defects=[]):
         grid.to_excel(writer, sheet_name='Grid', index_label='Distance from Top (cm)')
         defect_log.to_excel(writer, sheet_name='Defect Log', index=False)
 
+    from xlsxwriter.utility import xl_rowcol_to_cell
+
+    workbook = writer.book
+    worksheet = writer.sheets['Grid']
+
+    # Define formats for each severity level
+    severity_formats = {
+        1: workbook.add_format({'bg_color': '#90EE90', 'align': 'center'}),
+        2: workbook.add_format({'bg_color': '#9ACD32', 'align': 'center'}),
+        3: workbook.add_format({'bg_color': '#FFD700', 'align': 'center'}),
+        4: workbook.add_format({'bg_color': '#FFA500', 'align': 'center'}),
+        5: workbook.add_format({'bg_color': '#FF6347', 'align': 'center'}),
+    }
+
+    for defect in defects:
+        location = defect.get("Grid Location", "")
+        severity = defect.get("Severity (1–5)", "")
+        if "cm x" in location and severity in severity_formats:
+            try:
+                col_cm, row_cm = map(lambda x: int(x.strip().replace("cm", "")), location.split("cm x"))
+                col_idx = int(col_cm / interval_cm)
+                row_idx = int(row_cm / interval_cm)
+                excel_row = row_idx + 1  # offset for header
+                excel_col = col_idx + 1
+                worksheet.write(excel_row, excel_col, severity, severity_formats[severity])
+            except:
+                continue
+
+
     output.seek(0)
     return output
 
